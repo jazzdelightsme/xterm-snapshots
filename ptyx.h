@@ -2870,6 +2870,14 @@ typedef struct _Misc {
 #endif
 } Misc;
 
+#if OPT_ISO_COLORS
+typedef struct _SgrSaveData {
+    IFlags	flags;
+    int		sgr_foreground;
+    int		sgr_background;
+} SgrSaveDataRec, *SgrSaveData;
+#endif
+
 typedef struct _Work {
     int dummy;
 #ifdef SunXK_F36
@@ -2977,6 +2985,9 @@ typedef struct _XtermWidgetRec {
 #if OPT_ISO_COLORS
     int		sgr_foreground; /* current SGR foreground color */
     int		sgr_background; /* current SGR background color */
+    SgrSaveData	sgr_stack;	/* saved SGR states		*/
+    unsigned	sgr_stack_len;
+    unsigned	sgr_stack_pos;
 #endif
     IFlags	initflags;	/* initial mode flags		*/
     Tabs	tabs;		/* tabstops of the terminal	*/

@@ -1335,6 +1335,13 @@ Character Attributes (SGR).
   \*(Ps = \*4\*7 \(-> Set background color to White.
   \*(Ps = \*4\*9 \(-> Set background color to default (original).
 .sP
+The following non-standard controls allow you to save and restore SGR attributes
+on a stack.  This allows SGR-containing text from independent sources to be
+easily composed together, without requiring global coordination.
+.iP
+  \*(Ps = \*6\*6 \(-> Save the current SGR attributes by pushing them onto a stack ("push").
+  \*(Ps = \*6\*7 \(-> Restore the SGR attributes from the stack ("pop").
+.sP
 If 16-color support is compiled, the following \fIaixterm\fP controls apply.
 Assume that \fIxterm\fP's resources
 are set so that the ISO color codes are the first 8 of a set of 16.

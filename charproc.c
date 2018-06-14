@@ -1129,6 +1129,71 @@ reset_SGR_Colors(XtermWidget xw)
     reset_SGR_Foreground(xw);
     reset_SGR_Background(xw);
 }
+
+static void
+push_SGR_state(XtermWidget xw)
+{
+    if (xw->sgr_stack == NULL) {
+        unsigned newLen = 16;
+        xw->sgr_stack = TypeCallocN(SgrSaveDataRec, newLen);
+        if (xw->sgr_stack == NULL) {
+            xtermWarning("malloc failed in push_SGR_state\n");
+            return;
+        }
+        xw->sgr_stack_len = newLen;
+    }
+
+    /* Have we outgrown the current stack? */
+    if (xw->sgr_stack_pos >= xw->sgr_stack_len) {
+        if (xw->sgr_stack_pos >= 256) {
+            xtermWarning("unreasonably deep nesting in push_SGR_state\n");
+            return;
+        }
+
+        unsigned newLen = xw->sgr_stack_len * 2;
+        SgrSaveData newStack = TypeRealloc(SgrSaveDataRec, newLen, xw->sgr_stack);
+
+        if (newStack == NULL) {
+            xtermWarning("realloc failed in push_SGR_state\n");
+            return;
+        }
+
+        xw->sgr_stack = newStack;
+        xw->sgr_stack_len = newLen;
+    }
+
+    /* Note that we only save user-visible attributes */
+    xw->sgr_stack[xw->sgr_stack_pos].flags = xw->flags & ATTRIBUTES;
+    xw->sgr_stack[xw->sgr_stack_pos].sgr_foreground = xw->sgr_foreground;
+    xw->sgr_stack[xw->sgr_stack_pos].sgr_background = xw->sgr_background;
+    xw->sgr_stack_pos++;
+}
+
+static void
+pop_SGR_state(XtermWidget xw)
+{
+    if ((xw->sgr_stack == NULL) || (xw->sgr_stack_pos == 0)) {
+        /* SGR stack underflow */
+        Bell(xw, XkbBI_MinorError, 0);
+        return;
+    }
+
+    xw->sgr_stack_pos--;
+
+    /*
+     * Note that we do not attempt to reclaim memory. If there were N pushes
+     * and pops in the past, there's a reasonable chance of N more in the
+     * future, and N is not likely to be large anyway, so we'll just keep the
+     * memory at the ready.
+     */
+
+    xw->flags = (xw->flags & ~ATTRIBUTES) | xw->sgr_stack[xw->sgr_stack_pos].flags;
+    xw->sgr_foreground = xw->sgr_stack[xw->sgr_stack_pos].sgr_foreground;
+    xw->sgr_background = xw->sgr_stack[xw->sgr_stack_pos].sgr_background;
+
+    setExtendedFG(xw);
+    setExtendedBG(xw);
+}
 #endif /* OPT_ISO_COLORS */
 
 #if OPT_WIDE_ATTRS
@@ -3122,6 +3187,18 @@ doparsing(XtermWidget xw, unsigned c, struct ParseState *sp)
 		case 49:
 		    if_OPT_ISO_COLORS(screen, {
 			reset_SGR_Background(xw);
+		    });
+		    break;
+		case 66:
+		    /* (non-standard) push SGR state */
+		    if_OPT_ISO_COLORS(screen, {
+			push_SGR_state(xw);
+		    });
+		    break;
+		case 67:
+		    /* (non-standard) pop SGR state */
+		    if_OPT_ISO_COLORS(screen, {
+			pop_SGR_state(xw);
 		    });
 		    break;
 		case 90:
@@ -8653,6 +8730,10 @@ VTInitialize(Widget wrequest,
     wnew->sgr_background = -1;
     clrDirectFG(wnew->flags);
     clrDirectFG(wnew->flags);
+
+    wnew->sgr_stack = NULL;
+    wnew->sgr_stack_len = 0;
+    wnew->sgr_stack_pos = 0;
 #endif /* OPT_ISO_COLORS */
 
     /*
@@ -11207,6 +11288,7 @@ ReallyReset(XtermWidget xw, Bool full, Bool saved)
     if_OPT_ISO_COLORS(screen, {
 	static char empty[1];
 	reset_SGR_Colors(xw);
+	xw->sgr_stack_pos = 0;
 	if (ResetAnsiColorRequest(xw, empty, 0))
 	    xtermRepaint(xw);
     });
